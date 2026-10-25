@@ -4,7 +4,16 @@
 \alias{yatchew_test.data.frame}
 \title{General yatchew_test method for unclassed dataframes}
 \usage{
-\method{yatchew_test}{data.frame}(data, Y, D, het_robust = FALSE, path_plot = FALSE, order = 1, ...)
+\method{yatchew_test}{data.frame}(
+  data,
+  Y,
+  D,
+  het_robust = FALSE,
+  path_plot = FALSE,
+  order = 1,
+  seed = NULL,
+  ...
+)
 }
 \arguments{
 \item{data}{(data.frame) A dataframe.}
@@ -18,6 +27,8 @@
 \item{path_plot}{(logical) if TRUE and \code{D} has length 2, the assigned object will include a plot of the sequence of \eqn{(D_{1i}, D_{2i})}s that minimizes the euclidean distance between each pair of consecutive observations (see Overview for further details).}
 
 \item{order}{(nonnegative integer k) If this option is specified, the program tests whether the conditional expectation of \code{Y} given \code{D} is a k-degree polynomial in \code{D}. With \code{order = 0}, the command tests the hypothesis that the conditional mean of \code{Y} given \code{D} is constant.}
+
+\item{seed}{(NULL or a number) Ties in \code{D} (rows with identical values of all the variables in \code{D} when it has length \eqn{> 1}) are placed in a random order that does not depend on \code{Y}: ordering them by \code{Y} would bias \eqn{\hat{\sigma}^2_{\text{diff}}} downwards and make the test reject a true null with probability tending to one. With the default \code{NULL}, this order is drawn from the current random number generator, so call \code{set.seed()} beforehand for reproducible results. With a number, it is drawn after \code{set.seed(seed)} and the caller's random number generator state is restored afterwards. Without ties, no random number is drawn and \code{seed} has no effect.}
 
 \item{...}{Undocumented.}
 }

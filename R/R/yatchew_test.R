@@ -19,6 +19,7 @@ yatchew_test <- function(data, ...) {
 #' @param het_robust (logical) If FALSE, the test is performed under the assumption of homoskedasticity (Yatchew, 1997). If TRUE, the test is performed using the heteroskedasticity-robust test statistic proposed by de Chaisemartin and D'Haultfoeuille (2024).
 #' @param order (nonnegative integer k) If this option is specified, the program tests whether the conditional expectation of \code{Y} given \code{D} is a k-degree polynomial in \code{D}. With \code{order = 0}, the command tests the hypothesis that the conditional mean of \code{Y} given \code{D} is constant.
 #' @param path_plot (logical) if TRUE and \code{D} has length 2, the assigned object will include a plot of the sequence of \eqn{(D_{1i}, D_{2i})}s that minimizes the euclidean distance between each pair of consecutive observations (see Overview for further details).
+#' @param seed (NULL or a number) Ties in \code{D} (rows with identical values of all the variables in \code{D} when it has length \eqn{> 1}) are placed in a random order that does not depend on \code{Y}: ordering them by \code{Y} would bias \eqn{\hat{\sigma}^2_{\text{diff}}} downwards and make the test reject a true null with probability tending to one. With the default \code{NULL}, this order is drawn from the current random number generator, so call \code{set.seed()} beforehand for reproducible results. With a number, it is drawn after \code{set.seed(seed)} and the caller's random number generator state is restored afterwards. Without ties, no random number is drawn and \code{seed} has no effect.
 #' @param ... Undocumented.
 #' @section Overview:
 #' This program implements the linearity test proposed by Yatchew (1997) and its heteroskedasticity-robust version proposed by de Chaisemartin and D'Haultfoeuille (2024). 
@@ -95,9 +96,9 @@ yatchew_test <- function(data, ...) {
 #' df$y <- 2 + df$b * df$x
 #' yatchew_test(data = df, Y = "y", D = "x")
 #' @returns A list with test results.
-#' @importFrom stats as.formula lm pnorm var
+#' @importFrom stats as.formula lm pnorm runif var
 #' @export
-yatchew_test.data.frame <- function(data, Y, D, het_robust = FALSE, path_plot = FALSE, order = 1, ...){    
+yatchew_test.data.frame <- function(data, Y, D, het_robust = FALSE, path_plot = FALSE, order = 1, seed = NULL, ...){
     args <- list()
     for (v in names(formals(yatchew_test.data.frame))) {
         if (!(v %in% c("data", "..."))) {
@@ -118,13 +119,25 @@ yatchew_test.data.frame <- function(data, Y, D, het_robust = FALSE, path_plot = 
         stop("path_plot can be requested only with 2 treatment variables.")
     }
 
+    if (!is.null(seed) && (!is.numeric(seed) || length(seed) != 1 || is.na(seed))) {
+        stop("Invalid seed input.")
+    }
+
     data <- subset(data, !is.na(data[[Y]]))
     pol_D <- c()
     for (v in D) {
         data <- subset(data, !is.na(data[[v]]))
     }
     if (length(D) == 1) {
-       data <- data[order(data[[D]], data[[Y]]), ]
+       # Ties in D are put in a random order that does not depend on Y. Ordering them by Y makes the first
+       # differences inside a block of ties spacings of order statistics, which biases var_diff downwards and
+       # makes the test reject a true null with probability tending to one. Without ties nothing is drawn.
+       if (anyDuplicated(data[[D]])) {
+            tie_key <- draw_with_seed(seed, function() runif(nrow(data)))
+       } else {
+            tie_key <- seq_len(nrow(data))
+       }
+       data <- data[order(data[[D]], tie_key), ]
        if (order == 0) {
             reg_formula <- paste0(Y,"~1")
        } else {
@@ -138,6 +151,11 @@ yatchew_test.data.frame <- function(data, Y, D, het_robust = FALSE, path_plot = 
             }
        }
     } else {
+        # The path through rows with identical D vectors follows their input order, which may depend on Y:
+        # permute the rows at random first (only when such rows exist), for the same reason as above.
+        if (anyDuplicated(data[D])) {
+            data <- data[draw_with_seed(seed, function() sample.int(nrow(data))), ]
+        }
         data <- nearest_neighbor_sort(data, D)
         if (length(D) == 2 & isTRUE(path_plot)) {
             grout <- path_plot(data, D)
